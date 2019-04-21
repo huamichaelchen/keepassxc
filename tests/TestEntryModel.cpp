@@ -185,7 +185,7 @@ void TestEntryModel::testAttributesModel()
 
     // test attribute protection
     QString value = entryAttributes->value("2nd");
-    entryAttributes->set("2nd", value, true);
+    entryAttributes->set("2nd", value, EntryAttributes::ProtectionMode::Protect);
     QVERIFY(entryAttributes->isProtected("2nd"));
     QCOMPARE(entryAttributes->value("2nd"), value);
 

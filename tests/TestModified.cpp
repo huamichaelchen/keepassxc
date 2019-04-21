@@ -327,22 +327,22 @@ void TestModified::testEntrySets()
     entry->setOverrideUrl(entry->overrideUrl());
     QTRY_COMPARE(spyModified.count(), spyCount);
 
-    entry->attributes()->set("test key", "test value", false);
+    entry->attributes()->set("test key", "test value");
     ++spyCount;
     QTRY_COMPARE(spyModified.count(), spyCount);
-    entry->attributes()->set("test key", entry->attributes()->value("test key"), false);
+    entry->attributes()->set("test key", entry->attributes()->value("test key"));
     QTRY_COMPARE(spyModified.count(), spyCount);
-    entry->attributes()->set("test key", entry->attributes()->value("test key"), true);
+    entry->attributes()->set("test key", entry->attributes()->value("test key"), EntryAttributes::ProtectionMode::Protect);
     ++spyCount;
     QTRY_COMPARE(spyModified.count(), spyCount);
-    entry->attributes()->set("test key", "new test value", true);
+    entry->attributes()->set("test key", "new test value", EntryAttributes::ProtectionMode::Protect);
     ++spyCount;
     QTRY_COMPARE(spyModified.count(), spyCount);
 
-    entry->attributes()->set("test key2", "test value2", true);
+    entry->attributes()->set("test key2", "test value2", EntryAttributes::ProtectionMode::Protect);
     ++spyCount;
     QTRY_COMPARE(spyModified.count(), spyCount);
-    entry->attributes()->set("test key2", entry->attributes()->value("test key2"), true);
+    entry->attributes()->set("test key2", entry->attributes()->value("test key2"), EntryAttributes::ProtectionMode::Protect);
     QTRY_COMPARE(spyModified.count(), spyCount);
 }
 

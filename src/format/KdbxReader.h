@@ -37,7 +37,7 @@ class KdbxReader
 
 public:
     KdbxReader() = default;
-    virtual ~KdbxReader() = default;
+    virtual ~KdbxReader();
 
     static bool readMagicNumbers(QIODevice* device, quint32& sig1, quint32& sig2, quint32& version);
     bool readDatabase(QIODevice* device, QSharedPointer<const CompositeKey> key, Database* db);
@@ -48,7 +48,7 @@ public:
     bool saveXml() const;
     void setSaveXml(bool save);
     QByteArray xmlData() const;
-    KeePass2::ProtectedStreamAlgo protectedStreamAlgo() const;
+    KeePass2::RandomStreamAlgo protectedStreamAlgo() const;
 
 protected:
     /**
@@ -80,7 +80,7 @@ protected:
     virtual void setTransformSeed(const QByteArray& data);
     virtual void setTransformRounds(const QByteArray& data);
     virtual void setEncryptionIV(const QByteArray& data);
-    virtual void setProtectedStreamKey(const QByteArray& data);
+    virtual void setRandomStreamKey(QByteArray& data);
     virtual void setStreamStartBytes(const QByteArray& data);
     virtual void setInnerRandomStreamID(const QByteArray& data);
 
@@ -93,8 +93,9 @@ protected:
     QByteArray m_masterSeed;
     QByteArray m_encryptionIV;
     QByteArray m_streamStartBytes;
-    QByteArray m_protectedStreamKey;
-    KeePass2::ProtectedStreamAlgo m_irsAlgo = KeePass2::ProtectedStreamAlgo::InvalidProtectedStreamAlgo;
+    char* m_randomStreamKey = nullptr;
+    std::size_t m_randomStreamKeySize = 0;
+    KeePass2::RandomStreamAlgo m_randomStreamAlgo = KeePass2::RandomStreamAlgo::InvalidRandomStreamAlgo;
 
     QByteArray m_xmlData;
 

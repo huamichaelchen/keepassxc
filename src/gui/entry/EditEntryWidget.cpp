@@ -852,7 +852,8 @@ bool EditEntryWidget::commitEntry()
 
     if (m_advancedUi->attributesView->currentIndex().isValid() && m_advancedUi->attributesEdit->isEnabled()) {
         QString key = m_attributesModel->keyByIndex(m_advancedUi->attributesView->currentIndex());
-        m_entryAttributes->set(key, m_advancedUi->attributesEdit->toPlainText(), m_entryAttributes->isProtected(key));
+        m_entryAttributes->set(key, m_advancedUi->attributesEdit->toPlainText(),
+            static_cast<EntryAttributes::ProtectionMode>(m_entryAttributes->isProtected(key)));
     }
 
     m_currentAttribute = QPersistentModelIndex();
@@ -1094,7 +1095,8 @@ void EditEntryWidget::updateCurrentAttribute()
         if (m_currentAttribute.isValid() && m_advancedUi->attributesEdit->isEnabled()) {
             QString currKey = m_attributesModel->keyByIndex(m_currentAttribute);
             m_entryAttributes->set(
-                currKey, m_advancedUi->attributesEdit->toPlainText(), m_entryAttributes->isProtected(currKey));
+                currKey, m_advancedUi->attributesEdit->toPlainText(),
+                static_cast<EntryAttributes::ProtectionMode>(m_entryAttributes->isProtected(currKey)));
         }
     }
 
@@ -1148,10 +1150,10 @@ void EditEntryWidget::protectCurrentAttribute(bool state)
         QString key = m_attributesModel->keyByIndex(index);
         if (state) {
             // Save the current text and protect the attribute
-            m_entryAttributes->set(key, m_advancedUi->attributesEdit->toPlainText(), true);
+            m_entryAttributes->set(key, m_advancedUi->attributesEdit->toPlainText(), EntryAttributes::ProtectionMode::Protect);
         } else {
             // Unprotect the current attribute value (don't save text as it is obscured)
-            m_entryAttributes->set(key, m_entryAttributes->value(key), false);
+            m_entryAttributes->set(key, m_entryAttributes->value(key), EntryAttributes::ProtectionMode::Protect);
         }
 
         // Display the attribute

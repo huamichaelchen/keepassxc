@@ -583,7 +583,8 @@ void ShareObserver::resolveReferenceAttributes(Entry* targetEntry, const Databas
         const auto* sourceReference = sourceDb->rootGroup()->findEntryByUuid(targetEntry->uuid());
         const auto resolvedValue = sourceReference->resolveMultiplePlaceholders(standardValue);
         targetEntry->setUpdateTimeinfo(false);
-        targetEntry->attributes()->set(attribute, resolvedValue, targetEntry->attributes()->isProtected(attribute));
+        targetEntry->attributes()->set(attribute, resolvedValue,
+            static_cast<EntryAttributes::ProtectionMode>(targetEntry->attributes()->isProtected(attribute)));
         targetEntry->setUpdateTimeinfo(true);
     }
 }

@@ -296,39 +296,39 @@ const AutoTypeAssociations* Entry::autoTypeAssociations() const
 
 QString Entry::title() const
 {
-    return m_attributes->value(EntryAttributes::TitleKey);
+    return attribute(EntryAttributes::TitleKey);
 }
 
 QString Entry::url() const
 {
-    return m_attributes->value(EntryAttributes::URLKey);
+    return attribute(EntryAttributes::URLKey);
 }
 
 QString Entry::webUrl() const
 {
-    QString url = resolveMultiplePlaceholders(m_attributes->value(EntryAttributes::URLKey));
+    QString url = resolveMultiplePlaceholders(attribute(EntryAttributes::URLKey));
     return resolveUrl(url);
 }
 
 QString Entry::displayUrl() const
 {
-    QString url = maskPasswordPlaceholders(m_attributes->value(EntryAttributes::URLKey));
+    QString url = maskPasswordPlaceholders(attribute(EntryAttributes::URLKey));
     return resolveMultiplePlaceholders(url);
 }
 
 QString Entry::username() const
 {
-    return m_attributes->value(EntryAttributes::UserNameKey);
+    return attribute(EntryAttributes::UserNameKey);
 }
 
 QString Entry::password() const
 {
-    return m_attributes->value(EntryAttributes::PasswordKey);
+    return attribute(EntryAttributes::PasswordKey);
 }
 
 QString Entry::notes() const
 {
-    return m_attributes->value(EntryAttributes::NotesKey);
+    return attribute(EntryAttributes::NotesKey);
 }
 
 QString Entry::attribute(const QString& key) const
@@ -347,7 +347,7 @@ bool Entry::isAttributeReferenceOf(const QString& key, const QUuid& uuid) const
         return false;
     }
 
-    return m_attributes->value(key).contains(Tools::uuidToHex(uuid), Qt::CaseInsensitive);
+    return attribute(key).contains(Tools::uuidToHex(uuid), Qt::CaseInsensitive);
 }
 
 bool Entry::hasReferences() const
@@ -437,9 +437,9 @@ void Entry::setTotp(QSharedPointer<Totp::Settings> settings)
 
         auto text = Totp::writeSettings(m_data.totpSettings, title(), username());
         if (m_attributes->hasKey(Totp::ATTRIBUTE_OTP)) {
-            m_attributes->set(Totp::ATTRIBUTE_OTP, text, true);
+            m_attributes->set(Totp::ATTRIBUTE_OTP, text, EntryAttributes::ProtectionMode::Protect);
         } else {
-            m_attributes->set(Totp::ATTRIBUTE_SEED, m_data.totpSettings->key, true);
+            m_attributes->set(Totp::ATTRIBUTE_SEED, m_data.totpSettings->key, EntryAttributes::ProtectionMode::Protect);
             m_attributes->set(Totp::ATTRIBUTE_SETTINGS, text);
         }
     }
@@ -449,10 +449,10 @@ void Entry::setTotp(QSharedPointer<Totp::Settings> settings)
 void Entry::updateTotp()
 {
     if (m_attributes->contains(Totp::ATTRIBUTE_SETTINGS)) {
-        m_data.totpSettings = Totp::parseSettings(m_attributes->value(Totp::ATTRIBUTE_SETTINGS),
-                                                  m_attributes->value(Totp::ATTRIBUTE_SEED));
+        m_data.totpSettings = Totp::parseSettings(attribute(Totp::ATTRIBUTE_SETTINGS),
+                                                  attribute(Totp::ATTRIBUTE_SEED));
     } else if (m_attributes->contains(Totp::ATTRIBUTE_OTP)) {
-        m_data.totpSettings = Totp::parseSettings(m_attributes->value(Totp::ATTRIBUTE_OTP));
+        m_data.totpSettings = Totp::parseSettings(attribute(Totp::ATTRIBUTE_OTP));
     }
 }
 
@@ -535,33 +535,38 @@ void Entry::setDefaultAutoTypeSequence(const QString& sequence)
 
 void Entry::setTitle(const QString& title)
 {
-    m_attributes->set(EntryAttributes::TitleKey, title, m_attributes->isProtected(EntryAttributes::TitleKey));
+    m_attributes->set(EntryAttributes::TitleKey, title,
+        static_cast<EntryAttributes::ProtectionMode>(m_attributes->isProtected(EntryAttributes::TitleKey)));
 }
 
 void Entry::setUrl(const QString& url)
 {
-    bool remove = url != m_attributes->value(EntryAttributes::URLKey)
-                  && (m_attributes->value(EntryAttributes::RememberCmdExecAttr) == "1"
-                      || m_attributes->value(EntryAttributes::RememberCmdExecAttr) == "0");
+    bool remove = url != attribute(EntryAttributes::URLKey)
+                  && (attribute(EntryAttributes::RememberCmdExecAttr) == "1"
+                      || attribute(EntryAttributes::RememberCmdExecAttr) == "0");
     if (remove) {
         m_attributes->remove(EntryAttributes::RememberCmdExecAttr);
     }
-    m_attributes->set(EntryAttributes::URLKey, url, m_attributes->isProtected(EntryAttributes::URLKey));
+    m_attributes->set(EntryAttributes::URLKey, url,
+        static_cast<EntryAttributes::ProtectionMode>(m_attributes->isProtected(EntryAttributes::URLKey)));
 }
 
 void Entry::setUsername(const QString& username)
 {
-    m_attributes->set(EntryAttributes::UserNameKey, username, m_attributes->isProtected(EntryAttributes::UserNameKey));
+    m_attributes->set(EntryAttributes::UserNameKey, username,
+        static_cast<EntryAttributes::ProtectionMode>(m_attributes->isProtected(EntryAttributes::UserNameKey)));
 }
 
 void Entry::setPassword(const QString& password)
 {
-    m_attributes->set(EntryAttributes::PasswordKey, password, m_attributes->isProtected(EntryAttributes::PasswordKey));
+    m_attributes->set(EntryAttributes::PasswordKey, password,
+        static_cast<EntryAttributes::ProtectionMode>(m_attributes->isProtected(EntryAttributes::PasswordKey)));
 }
 
 void Entry::setNotes(const QString& notes)
 {
-    m_attributes->set(EntryAttributes::NotesKey, notes, m_attributes->isProtected(EntryAttributes::NotesKey));
+    m_attributes->set(EntryAttributes::NotesKey, notes,
+        static_cast<EntryAttributes::ProtectionMode>(m_attributes->isProtected(EntryAttributes::NotesKey)));
 }
 
 void Entry::setDefaultAttribute(const QString& attribute, const QString& value)
@@ -572,7 +577,7 @@ void Entry::setDefaultAttribute(const QString& attribute, const QString& value)
         return;
     }
 
-    m_attributes->set(attribute, value, m_attributes->isProtected(attribute));
+    m_attributes->set(attribute, value, static_cast<EntryAttributes::ProtectionMode>(m_attributes->isProtected(attribute)));
 }
 
 void Entry::setExpires(const bool& value)
@@ -733,15 +738,11 @@ Entry* Entry::clone(CloneFlags flags) const
     entry->m_attachments->copyDataFrom(m_attachments);
 
     if (flags & CloneUserAsRef) {
-        entry->m_attributes->set(EntryAttributes::UserNameKey,
-                                 buildReference(uuid(), EntryAttributes::UserNameKey),
-                                 m_attributes->isProtected(EntryAttributes::UserNameKey));
+        entry->m_attributes->set(EntryAttributes::UserNameKey, buildReference(uuid(), EntryAttributes::UserNameKey));
     }
 
     if (flags & ClonePassAsRef) {
-        entry->m_attributes->set(EntryAttributes::PasswordKey,
-                                 buildReference(uuid(), EntryAttributes::PasswordKey),
-                                 m_attributes->isProtected(EntryAttributes::PasswordKey));
+        entry->m_attributes->set(EntryAttributes::PasswordKey, buildReference(uuid(), EntryAttributes::PasswordKey));
     }
 
     entry->m_autoTypeAssociations->copyDataFrom(m_autoTypeAssociations);

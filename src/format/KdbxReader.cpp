@@ -24,7 +24,20 @@
 
 #include <QBuffer>
 
+#include <cstring>
+#include <sodium.h>
+#include <gcrypt.h>
+
 #define UUID_LENGTH 16
+
+KdbxReader::~KdbxReader()
+{
+    if (m_randomStreamKey) {
+        gcry_free(m_randomStreamKey);
+        m_randomStreamKey = nullptr;
+        m_randomStreamKeySize = 0;
+    }
+}
 
 /**
  * Read KDBX magic header numbers from a device.
@@ -71,7 +84,11 @@ bool KdbxReader::readDatabase(QIODevice* device, QSharedPointer<const CompositeK
     m_masterSeed.clear();
     m_encryptionIV.clear();
     m_streamStartBytes.clear();
-    m_protectedStreamKey.clear();
+    if (m_randomStreamKey) {
+        gcry_free(m_randomStreamKey);
+        m_randomStreamKey = nullptr;
+        m_randomStreamKeySize = 0;
+    }
 
     StoreDataStream headerStream(device);
     headerStream.open(QIODevice::ReadOnly);
@@ -132,9 +149,9 @@ QByteArray KdbxReader::xmlData() const
     return m_xmlData;
 }
 
-KeePass2::ProtectedStreamAlgo KdbxReader::protectedStreamAlgo() const
+KeePass2::RandomStreamAlgo KdbxReader::protectedStreamAlgo() const
 {
-    return m_irsAlgo;
+    return m_randomStreamAlgo;
 }
 
 /**
@@ -232,11 +249,18 @@ void KdbxReader::setEncryptionIV(const QByteArray& data)
 }
 
 /**
+ * Set inner stream key and wipe source buffer.
+ *
  * @param data key for random (inner) stream as bytes
  */
-void KdbxReader::setProtectedStreamKey(const QByteArray& data)
+void KdbxReader::setRandomStreamKey(QByteArray& data)
 {
-    m_protectedStreamKey = data;
+    auto size = static_cast<std::size_t>(data.size());
+    m_randomStreamKey = static_cast<char*>(gcry_malloc_secure(size));
+    m_randomStreamKeySize = size;
+    std::memcpy(m_randomStreamKey, data.data(), size);
+    sodium_memzero(data.data(), static_cast<const std::size_t>(data.capacity()));
+    data.clear();
 }
 
 /**
@@ -261,13 +285,13 @@ void KdbxReader::setInnerRandomStreamID(const QByteArray& data)
         return;
     }
     auto id = Endian::bytesToSizedInt<quint32>(data, KeePass2::BYTEORDER);
-    KeePass2::ProtectedStreamAlgo irsAlgo = KeePass2::idToProtectedStreamAlgo(id);
-    if (irsAlgo == KeePass2::ProtectedStreamAlgo::InvalidProtectedStreamAlgo
-        || irsAlgo == KeePass2::ProtectedStreamAlgo::ArcFourVariant) {
+    KeePass2::RandomStreamAlgo irsAlgo = KeePass2::idToProtectedStreamAlgo(id);
+    if (irsAlgo == KeePass2::RandomStreamAlgo::InvalidRandomStreamAlgo
+        || irsAlgo == KeePass2::RandomStreamAlgo::ArcFourVariant) {
         raiseError(tr("Invalid inner random stream cipher"));
         return;
     }
-    m_irsAlgo = irsAlgo;
+    m_randomStreamAlgo = irsAlgo;
 }
 
 /**

@@ -19,6 +19,10 @@
 #include "EntryAttributes.h"
 
 #include "core/Global.h"
+#include "crypto/RandomStream.h"
+#include "crypto/Random.h"
+
+#include <sodium.h>
 
 const QString EntryAttributes::TitleKey = "Title";
 const QString EntryAttributes::UserNameKey = "UserName";
@@ -62,8 +66,11 @@ QList<QString> EntryAttributes::customKeys() const
     return customKeys;
 }
 
-QString EntryAttributes::value(const QString& key) const
+QString EntryAttributes::value(const QString& key, bool unprotect) const
 {
+    if (unprotect && isProtected(key)) {
+        // TODO: decrypt
+    }
     return m_attributes.value(key);
 }
 
@@ -71,7 +78,7 @@ QList<QString> EntryAttributes::values(const QList<QString>& keys) const
 {
     QList<QString> values;
     for (const QString& key : keys) {
-        values.append(m_attributes.value(key));
+        values.append(value(key));
     }
     return values;
 }
@@ -83,6 +90,7 @@ bool EntryAttributes::contains(const QString& key) const
 
 bool EntryAttributes::containsValue(const QString& value) const
 {
+    // TODO: allow searching in protected values
     return asConst(m_attributes).values().contains(value);
 }
 
@@ -102,29 +110,40 @@ bool EntryAttributes::isReference(const QString& key) const
     return matchReference(data).hasMatch();
 }
 
-void EntryAttributes::set(const QString& key, const QString& value, bool protect)
+void EntryAttributes::set(const QString& key, QString value, ProtectionMode protection)
 {
     bool emitModified = false;
 
     bool addAttribute = !m_attributes.contains(key);
-    bool changeValue = !addAttribute && (m_attributes.value(key) != value);
     bool defaultAttribute = isDefaultAttribute(key);
+
+    QString oldValue;
+    bool oldProtected = !addAttribute && m_protectedAttributes.contains(key);
+
+    if (!addAttribute && oldProtected) {
+        // TODO: decrypt
+        oldValue = m_attributes.value(key);
+    } else if (!addAttribute) {
+        oldValue = m_attributes.value(key);
+    }
+    bool protect = protection != ProtectionMode::None;
+    bool changeValue = value != oldValue || protect != oldProtected;
+    sodium_memzero(oldValue.data(), oldValue.capacity());
+    oldValue.clear();
 
     if (addAttribute && !defaultAttribute) {
         emit aboutToBeAdded(key);
     }
 
     if (addAttribute || changeValue) {
-        m_attributes.insert(key, value);
-        emitModified = true;
-    }
-
-    if (protect) {
-        if (!m_protectedAttributes.contains(key)) {
-            emitModified = true;
+        if (protection == ProtectionMode::Protect) {
+            // TODO: encrypt
         }
-        m_protectedAttributes.insert(key);
-    } else if (m_protectedAttributes.remove(key)) {
+
+        m_attributes.insert(key, value);
+        if (protection != ProtectionMode::None) {
+            m_protectedAttributes.insert(key);
+        }
         emitModified = true;
     }
 
@@ -173,17 +192,14 @@ void EntryAttributes::rename(const QString& oldKey, const QString& newKey)
         return;
     }
 
-    QString data = value(oldKey);
-    bool protect = isProtected(oldKey);
+    QString data = value(oldKey, false);
 
     emit aboutToRename(oldKey, newKey);
 
-    m_attributes.remove(oldKey);
-    m_attributes.insert(newKey, data);
-    if (protect) {
-        m_protectedAttributes.remove(oldKey);
+    if (isProtected(oldKey)) {
         m_protectedAttributes.insert(newKey);
     }
+    m_attributes.insert(newKey, data);
 
     emit entryAttributesModified();
     emit renamed(oldKey, newKey);
@@ -209,10 +225,7 @@ void EntryAttributes::copyCustomKeysFrom(const EntryAttributes* other)
     const QList<QString> otherKeyList = other->keys();
     for (const QString& key : otherKeyList) {
         if (!isDefaultAttribute(key)) {
-            m_attributes.insert(key, other->value(key));
-            if (other->isProtected(key)) {
-                m_protectedAttributes.insert(key);
-            }
+            set(key, other->value(key, true), other->isProtected(key) ? ProtectionMode::Protect : ProtectionMode::None);
         }
     }
 
@@ -248,6 +261,7 @@ void EntryAttributes::copyDataFrom(const EntryAttributes* other)
 
         m_attributes = other->m_attributes;
         m_protectedAttributes = other->m_protectedAttributes;
+        m_protectedStream = other->m_protectedStream;
 
         emit reset();
         emit entryAttributesModified();
@@ -274,12 +288,12 @@ QUuid EntryAttributes::referenceUuid(const QString& key) const
 
 bool EntryAttributes::operator==(const EntryAttributes& other) const
 {
-    return (m_attributes == other.m_attributes && m_protectedAttributes == other.m_protectedAttributes);
+    return m_attributes == other.m_attributes && m_protectedAttributes == other.m_protectedAttributes;
 }
 
 bool EntryAttributes::operator!=(const EntryAttributes& other) const
 {
-    return (m_attributes != other.m_attributes || m_protectedAttributes != other.m_protectedAttributes);
+    return !operator==(other);
 }
 
 QRegularExpressionMatch EntryAttributes::matchReference(const QString& text)

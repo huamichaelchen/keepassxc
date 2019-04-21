@@ -53,7 +53,7 @@ void TestKeePass2Format::initTestCase()
     auto entry = new Entry();
     entry->setPassword(QString::fromUtf8("\xc3\xa4\xa3\xb6\xc3\xbc\xe9\x9b\xbb\xe7\xb4\x85"));
     entry->setUuid(QUuid::createUuid());
-    entry->attributes()->set("test", "protectedTest", true);
+    entry->attributes()->set("test", "protectedTest", EntryAttributes::ProtectionMode::Protect);
     QVERIFY(entry->attributes()->isProtected("test"));
     entry->attachments()->set("myattach.txt", QByteArray("this is an attachment"));
     entry->attachments()->set("aaa.txt", QByteArray("also an attachment"));
